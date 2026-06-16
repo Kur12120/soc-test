@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+﻿import { Router, Request, Response } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { pool } from "../db/pool";
 import { requireAuth, requireRole } from "../middleware/auth";
@@ -8,135 +8,104 @@ import { createNotification } from "../services/notificationService";
 const router = Router();
 
 router.get("/", requireAuth, async (req: Request, res: Response) => {
-  const user = req.user!;
-  let result;
-  if (user.role === "admin" || user.role === "super_admin") {
-    result = await pool.query(`
-      SELECT t.*,
-        u.full_name AS assigned_user_name,
-        c.full_name AS created_by_name,
-        (SELECT COUNT(*) FROM task_comments tc WHERE tc.task_id = t.id) AS comment_count
-      FROM tasks t
-      LEFT JOIN users u ON t.assigned_user_id = u.id
-      LEFT JOIN users c ON t.created_by = c.id
-      ORDER BY t.created_at DESC
-    `);
-  } else {
-    result = await pool.query(`
-      SELECT t.*,
-        u.full_name AS assigned_user_name,
-        c.full_name AS created_by_name,
-        (SELECT COUNT(*) FROM task_comments tc WHERE tc.task_id = t.id) AS comment_count
-      FROM tasks t
-      LEFT JOIN users u ON t.assigned_user_id = u.id
-      LEFT JOIN users c ON t.created_by = c.id
-      WHERE t.assigned_user_id = $1
-      ORDER BY t.created_at DESC
-    `, [user.userId]);
-  }
+  const result = await pool.query(`
+    SELECT t.*, u.full_name AS assigned_user_name, c.full_name AS created_by_name
+    FROM tasks t
+    LEFT JOIN users u ON t.assigned_user_id = u.id
+    LEFT JOIN users c ON t.created_by = c.id
+    ORDER BY t.created_at DESC
+  `);
   res.json(result.rows);
 });
 
-router.post("/", requireAuth, requireRole(["admin", "super_admin"]), async (req: Request, res: Response) => {
+router.post("/", requireAuth, requireRole(["admin"]), async (req: Request, res: Response) => {
   const { title, description, priority, assignedUserId, dueDate } = req.body as {
-    title?: string; description?: string; priority?: string; assignedUserId?: string; dueDate?: string;
+    title?: string; description?: string; priority?: string; assignedUserId?: string | null; dueDate?: string | null;
   };
-  if (!title) { res.status(400).json({ message: "title is required" }); return; }
-
+  if (!title) { res.status(400).json({ message: "Title required" }); return; }
   const id = uuidv4();
-  await pool.query(
-    "INSERT INTO tasks (id, title, description, priority, assigned_user_id, created_by, due_date) VALUES ($1,$2,$3,$4,$5,$6,$7)",
-    [id, title, description || null, priority || "medium", assignedUserId || null, req.user!.userId, dueDate || null]
+  const result = await pool.query(
+    `INSERT INTO tasks (id, title, description, priority, status, assigned_user_id, due_date, created_by, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()) RETURNING *`,
+    [id, title, description || null, priority || "medium", "pending", assignedUserId || null, dueDate || null, ((((req.user!.userId as string) as string) as string) as string)]
   );
-
+  await createAuditLog({ action: "task_created", actorUserId: ((((req.user!.userId as string) as string) as string) as string), targetType: "task", targetId: id, details: "Created task" });
   if (assignedUserId) {
-    await createNotification({
-      userId: assignedUserId,
-      title: "New Task Assigned",
-      message: `You have been assigned a new task: ${title}`,
-    });
+    await createNotification({ userId: assignedUserId, message: `You have been assigned a new task: ${title}`});
   }
-
-  await createAuditLog({ action: "task_created", actorUserId: req.user!.userId, targetType: "task", targetId: id, details: `Created task: ${title}` });
-  res.status(201).json({ id, title, description, priority, assignedUserId, dueDate });
+  res.status(201).json(result.rows[0]);
 });
 
-router.put("/:id", requireAuth, requireRole(["admin", "super_admin"]), async (req: Request, res: Response) => {
-  const { title, description, priority, assignedUserId, dueDate, status } = req.body as {
-    title?: string; description?: string; priority?: string; assignedUserId?: string; dueDate?: string; status?: string;
-  };
+router.patch("/:id", requireAuth, async (req: Request, res: Response) => {
+  const { status, assignedUserId } = req.body as { status?: string; assignedUserId?: string | null };
+  const check = await pool.query("SELECT id FROM tasks WHERE id = $1", [req.params.id]);
+  if (check.rows.length === 0) { res.status(404).json({ message: "Task not found" }); return; }
   await pool.query(
-    "UPDATE tasks SET title = COALESCE($1, title), description = COALESCE($2, description), priority = COALESCE($3, priority), assigned_user_id = $4, due_date = $5, status = COALESCE($6, status) WHERE id = $7",
-    [title, description, priority, assignedUserId || null, dueDate || null, status, req.params.id]
+    "UPDATE tasks SET status = COALESCE($1, status), assigned_user_id = $2 WHERE id = $3",
+    [status || null, assignedUserId !== undefined ? (assignedUserId || null) : null, req.params.id]
   );
-  await createAuditLog({ action: "task_updated", actorUserId: req.user!.userId, targetType: "task", targetId: req.params.id, details: "Task updated" });
+  await createAuditLog({ action: "task_updated", actorUserId: ((((req.user!.userId as string) as string) as string) as string), targetType: "task", targetId: req.params.id, details: "Task updated" });
   res.json({ message: "Updated" });
 });
 
 router.patch("/:id/status", requireAuth, async (req: Request, res: Response) => {
   const { status } = req.body as { status?: string };
-  if (!status) { res.status(400).json({ message: "status is required" }); return; }
+  if (!status) { res.status(400).json({ message: "Status required" }); return; }
   await pool.query("UPDATE tasks SET status = $1 WHERE id = $2", [status, req.params.id]);
-  await createAuditLog({ action: "task_status_updated", actorUserId: req.user!.userId, targetType: "task", targetId: req.params.id, details: `Status changed to ${status}` });
+  await createAuditLog({ action: "task_status_updated", actorUserId: ((((req.user!.userId as string) as string) as string) as string), targetType: "task", targetId: req.params.id, details: `Status: ${status}` });
   res.json({ message: "Updated" });
 });
 
-router.delete("/:id", requireAuth, requireRole(["admin", "super_admin"]), async (req: Request, res: Response) => {
+router.put("/:id", requireAuth, requireRole(["admin"]), async (req: Request, res: Response) => {
+  const { title, description, priority, status, assignedUserId, dueDate } = req.body as {
+    title?: string; description?: string; priority?: string; status?: string; assignedUserId?: string | null; dueDate?: string | null;
+  };
+  await pool.query(
+    "UPDATE tasks SET title = COALESCE($1, title), description = COALESCE($2, description), priority = COALESCE($3, priority), status = COALESCE($4, status), assigned_user_id = $5, due_date = $6 WHERE id = $7",
+    [title, description, priority, status, assignedUserId || null, dueDate || null, req.params.id]
+  );
+  await createAuditLog({ action: "task_updated", actorUserId: ((((req.user!.userId as string) as string) as string) as string), targetType: "task", targetId: req.params.id, details: "Task updated" });
+  res.json({ message: "Updated" });
+});
+
+router.delete("/:id", requireAuth, requireRole(["admin"]), async (req: Request, res: Response) => {
   await pool.query("DELETE FROM tasks WHERE id = $1", [req.params.id]);
-  await createAuditLog({ action: "task_deleted", actorUserId: req.user!.userId, targetType: "task", targetId: req.params.id, details: "Task deleted" });
+  await createAuditLog({ action: "task_deleted", actorUserId: ((((req.user!.userId as string) as string) as string) as string), targetType: "task", targetId: req.params.id, details: "Deleted" });
   res.json({ message: "Deleted" });
 });
 
 router.get("/:id/comments", requireAuth, async (req: Request, res: Response) => {
-  const result = await pool.query(`
-    SELECT tc.*, u.full_name AS user_name, u.role AS user_role
-    FROM task_comments tc
-    JOIN users u ON tc.user_id = u.id
-    WHERE tc.task_id = $1
-    ORDER BY tc.created_at ASC
-  `, [req.params.id]);
+  const result = await pool.query(
+    `SELECT tc.*, u.full_name AS author_name, u.role AS author_role
+     FROM task_comments tc
+     LEFT JOIN users u ON tc.user_id = u.id
+     WHERE tc.task_id = $1
+     ORDER BY tc.created_at ASC`,
+    [req.params.id]
+  );
   res.json(result.rows);
 });
 
 router.post("/:id/comments", requireAuth, async (req: Request, res: Response) => {
   const { content } = req.body as { content?: string };
-  if (!content || !content.trim()) { res.status(400).json({ message: "Comment content is required" }); return; }
-
+  if (!content?.trim()) { res.status(400).json({ message: "Content required" }); return; }
   const id = uuidv4();
-  await pool.query(
-    "INSERT INTO task_comments (id, task_id, user_id, content) VALUES ($1, $2, $3, $4)",
-    [id, req.params.id, req.user!.userId, content.trim()]
+  const result = await pool.query(
+    `INSERT INTO task_comments (id, task_id, user_id, content, created_at)
+     VALUES ($1, $2, $3, $4, NOW()) RETURNING *`,
+    [id, req.params.id, ((((req.user!.userId as string) as string) as string) as string), content.trim()]
   );
-
-  const taskResult = await pool.query("SELECT title, assigned_user_id, created_by FROM tasks WHERE id = $1", [req.params.id]);
-  const task = taskResult.rows[0];
-  const commenter = req.user!;
-
-  const notifyIds = new Set<string>();
-  if (task.assigned_user_id && task.assigned_user_id !== commenter.userId) notifyIds.add(task.assigned_user_id);
-  if (task.created_by && task.created_by !== commenter.userId) notifyIds.add(task.created_by);
-
-  for (const uid of notifyIds) {
-    await createNotification({
-      userId: uid,
-      title: "New Comment on Task",
-      message: `A new comment was added to task: ${task.title}`,
-    });
-  }
-
-  await createAuditLog({ action: "comment_added", actorUserId: req.user!.userId, targetType: "task", targetId: req.params.id, details: "Comment added" });
-  res.status(201).json({ id, content, taskId: req.params.id });
+  res.status(201).json(result.rows[0]);
 });
 
-router.delete("/:taskId/comments/:commentId", requireAuth, async (req: Request, res: Response) => {
-  const user = req.user!;
-  const comment = await pool.query("SELECT user_id FROM task_comments WHERE id = $1", [req.params.commentId]);
-  if (comment.rows.length === 0) { res.status(404).json({ message: "Comment not found" }); return; }
-  if (comment.rows[0].user_id !== user.userId && user.role !== "admin" && user.role !== "super_admin") {
-    res.status(403).json({ message: "Cannot delete another user comment" }); return;
-  }
+router.delete("/:taskId/comments/:commentId", requireAuth, requireRole(["admin"]), async (req: Request, res: Response) => {
   await pool.query("DELETE FROM task_comments WHERE id = $1", [req.params.commentId]);
-  res.json({ message: "Comment deleted" });
+  res.json({ message: "Deleted" });
 });
 
 export default router;
+
+
+
+
+

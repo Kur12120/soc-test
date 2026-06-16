@@ -1,4 +1,4 @@
-import express, { Request, Response, NextFunction } from "express";
+﻿import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import { apiRouter } from "./routes";
 import logger from "./utils/logger";
@@ -8,7 +8,13 @@ import { pool } from "./db/pool";
 const app = express();
 const port = Number(process.env.APP_PORT || 3000);
 
-app.use(cors());
+app.use(cors({
+  origin: ["http://127.0.0.1:5173", "http://localhost:5173", "http://127.0.0.1:3000"],
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -22,4 +28,4 @@ app.get("/api/health", async (_req: Request, res: Response, next: NextFunction) 
 app.use("/api", apiRouter);
 app.use(errorHandler);
 
-app.listen(port, () => { logger.info(`SOC backend running on port ${port}`); });
+app.listen(port, "0.0.0.0", () => { logger.info("SOC backend running on port " + port); });

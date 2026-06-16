@@ -1,4 +1,4 @@
-import * as ldap from "ldapjs";
+﻿import * as ldap from "ldapjs";
 
 export interface LdapConfig {
   url: string;
@@ -52,7 +52,7 @@ export async function authenticateWithLdap(
 
         res.on("searchEntry", (entry) => {
           userDn = entry.dn.toString();
-          const attrs = entry.pojo.attributes;
+          const attrs = entry.attributes.attributes;
           displayName = attrs.find((a: any) => a.type === "displayName")?.values[0]
             || attrs.find((a: any) => a.type === "cn")?.values[0];
           email = attrs.find((a: any) => a.type === "mail")?.values[0]
