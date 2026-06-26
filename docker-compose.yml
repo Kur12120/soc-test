@@ -1,4 +1,4 @@
-﻿version: "3.9"
+version: "3.9"
 
 services:
   postgres:
@@ -48,20 +48,12 @@ services:
       - backend
     environment:
       VITE_APP_NAME: ${VITE_APP_NAME:-SOC Management}
-      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-[127.0.0.1](http://127.0.0.1:3000/api})
+      VITE_API_BASE_URL: http://127.0.0.1:3000/api
     ports:
       - "5173:5173"
     volumes:
       - ./frontend:/app
-    command: sh -c "npm install && npm run db:init && npm run db:seed && npx tsc --outDir dist --skipLibCheck --noEmitOnError false; node dist/index.js"
+    command: sh -c "npm install && npm run dev -- --host"
 
 volumes:
   postgres_data:
-
-
-
-
-
-
-
-

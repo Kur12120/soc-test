@@ -46,6 +46,14 @@ export function UsersPage() {
     } catch (err) { setError(err instanceof Error ? err.message : "Failed"); }
   }
 
+  
+  async function updateRole(userId: string, newRole: string) {
+    try {
+      await apiRequest('/users/' + userId + '/role', { method: 'PATCH', body: JSON.stringify({ role: newRole }) }, true);
+      load();
+    } catch (err) { setError(err instanceof Error ? err.message : 'Failed'); }
+  }
+
   async function updateTeam(userId: string, newTeamId: string) {
     try {
       await apiRequest(`/users/${userId}/team`, { method: "PATCH", body: JSON.stringify({ teamId: newTeamId || null }) }, true);
@@ -122,9 +130,18 @@ export function UsersPage() {
                 <td style={{ padding: "14px 16px", fontWeight: 500, color: "#111827" }}>{u.fullName || u.full_name}</td>
                 <td style={{ padding: "14px 16px", fontSize: "13px", color: "#6b7280" }}>{u.email}</td>
                 <td style={{ padding: "14px 16px" }}>
-                  <span style={{ background: (roleColor[u.role] || "#6b7280") + "20", color: roleColor[u.role] || "#6b7280", padding: "3px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: 600, textTransform: "uppercase" }}>
-                    {u.role}
-                  </span>
+                  {readOnly ? (
+                    <span style={{ background: (roleColor[u.role] || '#6b7280') + '20', color: roleColor[u.role] || '#6b7280', padding: '3px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: 600, textTransform: 'uppercase' }}>
+                      {u.role}
+                    </span>
+                  ) : (
+                    <select value={u.role} onChange={(e) => updateRole(u.id, e.target.value)}
+                      style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '13px' }}>
+                      <option value="admin">Admin</option>
+                      <option value="user">User</option>
+                      <option value="ciso">CISO</option>
+                    </select>
+                  )}
                 </td>
                 <td style={{ padding: "14px 16px", fontSize: "13px", color: "#6b7280" }}>
                   {readOnly ? (u.team_name || "—") : (

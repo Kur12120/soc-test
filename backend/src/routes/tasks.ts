@@ -8,13 +8,39 @@ import { createNotification } from "../services/notificationService";
 const router = Router();
 
 router.get("/", requireAuth, async (req: Request, res: Response) => {
-  const result = await pool.query(`
-    SELECT t.*, u.full_name AS assigned_user_name, c.full_name AS created_by_name
-    FROM tasks t
-    LEFT JOIN users u ON t.assigned_user_id = u.id
-    LEFT JOIN users c ON t.created_by = c.id
-    ORDER BY t.created_at DESC
-  `);
+  const role = (req.user as any).role;
+  const userId = (req.user as any).userId as string;
+  if (role === 'user') {
+    const userRow = await pool.query('SELECT team_id FROM users WHERE id = $1', [userId]);
+    const teamId = userRow.rows[0]?.team_id;
+    const result = teamId
+      ? await pool.query(
+          `SELECT t.*, u.full_name AS assigned_user_name, c.full_name AS created_by_name
+           FROM tasks t
+           LEFT JOIN users u ON t.assigned_user_id = u.id
+           LEFT JOIN users c ON t.created_by = c.id
+           WHERE u.team_id = $1 OR t.assigned_user_id = $2
+           ORDER BY t.created_at DESC`,
+          [teamId, userId]
+        )
+      : await pool.query(
+          `SELECT t.*, u.full_name AS assigned_user_name, c.full_name AS created_by_name
+           FROM tasks t
+           LEFT JOIN users u ON t.assigned_user_id = u.id
+           LEFT JOIN users c ON t.created_by = c.id
+           WHERE t.assigned_user_id = $1
+           ORDER BY t.created_at DESC`,
+          [userId]
+        );
+    return res.json(result.rows);
+  }
+  const result = await pool.query(
+    `SELECT t.*, u.full_name AS assigned_user_name, c.full_name AS created_by_name
+     FROM tasks t
+     LEFT JOIN users u ON t.assigned_user_id = u.id
+     LEFT JOIN users c ON t.created_by = c.id
+     ORDER BY t.created_at DESC`
+  );
   res.json(result.rows);
 });
 

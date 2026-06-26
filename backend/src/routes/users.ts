@@ -73,6 +73,18 @@ router.patch("/:id/team", requireAuth, requireRole(["admin"]), async (req: Reque
   res.json({ message: "Team updated" });
 });
 
+
+router.patch('/:id/role', requireAuth, requireRole(['admin']), async (req: Request, res: Response) => {
+  const { role } = req.body as { role?: string };
+  if (!role || !['admin', 'user', 'ciso'].includes(role)) {
+    res.status(400).json({ message: 'Invalid role' });
+    return;
+  }
+  await pool.query('UPDATE users SET role = $1 WHERE id = $2', [role, req.params.id]);
+  await createAuditLog({ action: 'user_role_updated', actorUserId: (req.user as any).userId, targetType: 'user', targetId: req.params.id, details: 'Role updated to ' + role });
+  res.json({ message: 'Role updated' });
+});
+
 export default router;
 
 

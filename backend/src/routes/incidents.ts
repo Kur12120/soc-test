@@ -6,14 +6,40 @@ import { createAuditLog } from "../services/auditService";
 
 const router = Router();
 
-router.get("/", requireAuth, async (_req: Request, res: Response) => {
-  const result = await pool.query(`
-    SELECT i.*, u.full_name AS assigned_user_name, c.full_name AS created_by_name
-    FROM incidents i
-    LEFT JOIN users u ON i.assigned_user_id = u.id
-    LEFT JOIN users c ON i.created_by = c.id
-    ORDER BY i.created_at DESC
-  `);
+router.get("/", requireAuth, async (req: Request, res: Response) => {
+  const role = (req.user as any).role;
+  const userId = (req.user as any).userId as string;
+  if (role === 'user') {
+    const userRow = await pool.query('SELECT team_id FROM users WHERE id = $1', [userId]);
+    const teamId = userRow.rows[0]?.team_id;
+    const result = teamId
+      ? await pool.query(
+          `SELECT i.*, u.full_name AS assigned_user_name, c.full_name AS created_by_name
+           FROM incidents i
+           LEFT JOIN users u ON i.assigned_user_id = u.id
+           LEFT JOIN users c ON i.created_by = c.id
+           WHERE u.team_id = $1 OR i.assigned_user_id = $2
+           ORDER BY i.created_at DESC`,
+          [teamId, userId]
+        )
+      : await pool.query(
+          `SELECT i.*, u.full_name AS assigned_user_name, c.full_name AS created_by_name
+           FROM incidents i
+           LEFT JOIN users u ON i.assigned_user_id = u.id
+           LEFT JOIN users c ON i.created_by = c.id
+           WHERE i.assigned_user_id = $1
+           ORDER BY i.created_at DESC`,
+          [userId]
+        );
+    return res.json(result.rows);
+  }
+  const result = await pool.query(
+    `SELECT i.*, u.full_name AS assigned_user_name, c.full_name AS created_by_name
+     FROM incidents i
+     LEFT JOIN users u ON i.assigned_user_id = u.id
+     LEFT JOIN users c ON i.created_by = c.id
+     ORDER BY i.created_at DESC`
+  );
   res.json(result.rows);
 });
 

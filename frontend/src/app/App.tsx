@@ -76,7 +76,7 @@ export function App() {
             {navLink("/", "Dashboard", "📊")}
             {navLink("/incidents", "Incidents", "🚨")}
             {navLink("/tasks", "Tasks", "📋")}
-            {navLink("/teams", "Teams", "👥")}
+            {(role === "admin" || role === "ciso") && navLink("/teams", "Teams", "👥")}
             {(role === "admin" || role === "ciso") && navLink("/users", "Users", "👤")}
             {role === "admin" && navLink("/audit", "Audit", "📜")}
           </nav>
@@ -120,7 +120,7 @@ export function App() {
           <Route path="/" element={token ? <DashboardPage /> : <LoginPage />} />
           <Route path="/incidents" element={token ? <IncidentsPage /> : <LoginPage />} />
           <Route path="/tasks" element={token ? <TasksPage /> : <LoginPage />} />
-          <Route path="/teams" element={token ? <TeamsPage /> : <LoginPage />} />
+          <Route path="/teams" element={token && (role === "admin" || role === "ciso") ? <TeamsPage /> : <LoginPage />} />
           <Route path="/users" element={token && (role === "admin" || role === "ciso") ? <UsersPage /> : <LoginPage />} />
           <Route path="/audit" element={token && role === "admin" ? <AuditPage /> : <LoginPage />} />
           <Route path="/profile" element={token ? <ProfilePage /> : <LoginPage />} />
