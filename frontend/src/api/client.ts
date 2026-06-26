@@ -1,4 +1,4 @@
-﻿const API_BASE_URL = 'http://127.0.0.1:3000/api';
+﻿const API_BASE_URL = 'https://soc-backend-nrfi.onrender.com/api';
 function getHeaders(includeAuth: boolean = false): HeadersInit {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (includeAuth) {
@@ -23,3 +23,4 @@ export async function apiRequest<T>(
   }
   return response.json();
 }
+
