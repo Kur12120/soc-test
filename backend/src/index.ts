@@ -1,4 +1,4 @@
-﻿import express, { Request, Response, NextFunction } from "express";
+import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import { apiRouter } from "./routes";
 import logger from "./utils/logger";
@@ -9,7 +9,7 @@ const app = express();
 const port = Number(process.env.APP_PORT || 3000);
 
 app.use(cors({
-  origin: ["http://127.0.0.1:5173", "http://localhost:5173", "http://127.0.0.1:3000"],
+  origin: ["https://soc-frontend-l9qo.onrender.com", "http://127.0.0.1:5173", "http://localhost:5173"],
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
