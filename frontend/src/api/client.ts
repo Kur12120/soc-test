@@ -1,4 +1,4 @@
-﻿const API_BASE_URL = 'https://soc-backend-nrfi.onrender.com/api';
+const API_BASE_URL = 'https://soc-backend-nrfi.onrender.com/api';
 function getHeaders(includeAuth: boolean = false): HeadersInit {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (includeAuth) {
